@@ -1,7 +1,7 @@
+var d = require('./data');
+var TS = require('../../../lib/commands/ts');
+
 var rpb = require('../../../lib/protobuf/riakprotobuf');
-
-var StoreValue = require('../../../lib/commands/ts/storevalue');
-
 var TsPutResp = rpb.getProtoFor('TsPutResp');
 var TsColumnType = rpb.getProtoFor('TsColumnType');
 var RpbErrorResp = rpb.getProtoFor('RpbErrorResp');
@@ -11,42 +11,12 @@ var crypto = require('crypto');
 var logger = require('winston');
 var Long = require('long');
 
-var columns = [
-    { name: 'col_binary',    type: StoreValue.ColumnTypes.Binary },
-    { name: 'col_int',       type: StoreValue.ColumnTypes.Integer },
-    { name: 'col_numeric',   type: StoreValue.ColumnTypes.Numeric },
-    { name: 'col_timestamp', type: StoreValue.ColumnTypes.Timestamp },
-    { name: 'col_boolean',   type: StoreValue.ColumnTypes.Boolean },
-    { name: 'col_set',       type: StoreValue.ColumnTypes.Set },
-    { name: 'col_map',       type: StoreValue.ColumnTypes.Map },
-    { name: 'col_ms',        type: StoreValue.ColumnTypes.Timestamp }
-];
-
-var bd0 = crypto.randomBytes(16);
-var bd1 = crypto.randomBytes(16);
-var ts0 = new Date();
-var ts0ms = Long.fromNumber(ts0.getTime());
-var ts1 = new Date();
-var ts1ms = Long.fromNumber(ts1.getTime());
-
-var set = ['foo', 'bar', 'baz'];
-var map = {
-    foo: 'foo',
-    bar: 'bar',
-    baz: 'baz',
-};
-
-var rows = [
-    [ bd0, 0, 1.2, ts0, true, set, map, ts0ms ],
-    [ bd1, 3, 4.5, ts1, false, set, map, ts1ms ]
-];
-
 function validateTsPutReq(protobuf, hasCols) {
     assert.strictEqual(protobuf.getTable().toString('utf8'), 'table');
 
     if (hasCols) {
         var pcols = protobuf.getColumns();
-        assert.strictEqual(pcols.length, columns.length);
+        assert.strictEqual(pcols.length, d.columns.length);
 
         var col0 = pcols[0];
         assert.strictEqual(col0.getName().toString('utf8'), 'col_binary');
@@ -82,19 +52,18 @@ function validateTsPutReq(protobuf, hasCols) {
     }
 
     var prows = protobuf.getRows();
-    assert.strictEqual(prows.length, rows.length);
+    assert.strictEqual(prows.length, d.rows.length);
 
     var row0 = prows[0];
     var row0cells = row0.getCells();
     var zero = new Long(0);
 
-    assert(bd0.equals(row0cells[0].getBinaryValue().toBuffer()));
+    assert(d.bd0.equals(row0cells[0].getBinaryValue().toBuffer()));
     assert(row0cells[1].getIntegerValue().equals(zero));
     assert.strictEqual(row0cells[2].getNumericValue().toString('utf8'), '1.2');
     // ts0 is a Date
     var r0c3tsv = row0cells[3].getTimestampValue();
-    var ts0ms = Long.fromNumber(ts0.getTime());
-    assert(ts0ms.equals(r0c3tsv));
+    assert(d.ts0ms.equals(r0c3tsv));
     assert.strictEqual(row0cells[4].getBooleanValue(), true);
 
     // setvalue is an array of buffers
@@ -102,10 +71,10 @@ function validateTsPutReq(protobuf, hasCols) {
     row0cells[5].getSetValue().forEach(function (buf) {
         s0.push(JSON.parse(buf.toString('utf8')));
     });
-    assert.deepStrictEqual(s0, set);
+    assert.deepStrictEqual(s0, d.set);
 
     var mapval0 = JSON.parse(row0cells[6].getMapValue().toString('utf8'));
-    assert.deepStrictEqual(mapval0, map);
+    assert.deepStrictEqual(mapval0, d.map);
 
     var r0c7ms;
     if (hasCols) {
@@ -114,19 +83,18 @@ function validateTsPutReq(protobuf, hasCols) {
         r0c7ms = row0cells[7].getIntegerValue();
     }
     assert(Long.isLong(r0c7ms));
-    assert(r0c7ms.equals(ts0ms));
+    assert(r0c7ms.equals(d.ts0ms));
     
     var row1 = prows[1];
     var row1cells = row1.getCells();
     var three = new Long(3);
 
-    assert(bd1.equals(row1cells[0].getBinaryValue().toBuffer()));
+    assert(d.bd1.equals(row1cells[0].getBinaryValue().toBuffer()));
     assert(row1cells[1].getIntegerValue().equals(three));
     assert.strictEqual(row1cells[2].getNumericValue().toString('utf8'), '4.5');
 
     var r1c3tsv = row1cells[3].getTimestampValue();
-    var ts1ms = Long.fromNumber(ts1.getTime());
-    assert(ts1ms.equals(r1c3tsv));
+    assert(d.ts1ms.equals(r1c3tsv));
 
     assert.strictEqual(row1cells[4].getBooleanValue(), false);
 
@@ -135,10 +103,10 @@ function validateTsPutReq(protobuf, hasCols) {
     row1cells[5].getSetValue().forEach(function (buf) {
         s1.push(JSON.parse(buf.toString('utf8')));
     });
-    assert.deepStrictEqual(s1, set);
+    assert.deepStrictEqual(s1, d.set);
 
     var mapval1 = JSON.parse(row1cells[6].getMapValue().toString('utf8'));
-    assert.deepStrictEqual(mapval1, map);
+    assert.deepStrictEqual(mapval1, d.map);
 
     var r1c7ms;
     if (hasCols) {
@@ -147,7 +115,7 @@ function validateTsPutReq(protobuf, hasCols) {
         r1c7ms = row0cells[7].getIntegerValue();
     }
     assert(Long.isLong(r1c7ms));
-    assert(r1c7ms.equals(ts0ms));
+    assert(r1c7ms.equals(d.ts0ms));
 }
 
 describe('StoreValue', function() {
@@ -166,10 +134,10 @@ describe('StoreValue', function() {
 
     describe('Build', function() {
         it('should build a TsPutReq correctly', function(done) {
-            var storeCommand = new StoreValue.Builder()
+            var storeCommand = new TS.StoreValue.Builder()
                .withTable('table')
-               .withColumns(columns)
-               .withRows(rows)
+               .withColumns(d.columns)
+               .withRows(d.rows)
                .withCallback(function(){})
                .build();
             var protobuf = storeCommand.constructPbRequest();
@@ -178,9 +146,9 @@ describe('StoreValue', function() {
         });
 
         it('should build a TsPutReq correctly without column information', function(done) {
-            var storeCommand = new StoreValue.Builder()
+            var storeCommand = new TS.StoreValue.Builder()
                .withTable('table')
-               .withRows(rows)
+               .withRows(d.rows)
                .withCallback(function(){})
                .build();
             var protobuf = storeCommand.constructPbRequest();
@@ -196,10 +164,10 @@ describe('StoreValue', function() {
                 done();
             };
 
-            var storeCommand = new StoreValue.Builder()
+            var storeCommand = new TS.StoreValue.Builder()
                .withTable('table')
-               .withColumns(columns)
-               .withRows(rows)
+               .withColumns(d.columns)
+               .withRows(d.rows)
                .withCallback(cb)
                .build();
        
@@ -216,10 +184,10 @@ describe('StoreValue', function() {
                 done();
             };
            
-            var storeCommand = new StoreValue.Builder()
+            var storeCommand = new TS.StoreValue.Builder()
                .withTable('table')
-               .withColumns(columns)
-               .withRows(rows)
+               .withColumns(d.columns)
+               .withRows(d.rows)
                .withCallback(cb)
                .build();
        
