@@ -8,6 +8,10 @@ var TsColumnType = rpb.getProtoFor('TsColumnType');
 var RpbErrorResp = rpb.getProtoFor('RpbErrorResp');
 
 var assert = require('assert');
+if (!assert.deepStrictEqual) {
+    assert.deepStrictEqual = assert.deepEqual;
+}
+
 var logger = require('winston');
 var ByteBuffer = require('bytebuffer');
 var Long = require('long');
